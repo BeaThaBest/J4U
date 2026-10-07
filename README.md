@@ -13,6 +13,7 @@ up a real, battle-tested engineering practice — the right way, with the detail
 |--------|-----------------|
 | [🔐 Secret-Leak Prevention](secret-leak-prevention.md) | Cross-platform (macOS/Linux/Windows), 7-layer defense that stops secrets from ever being committed or pushed — `.gitignore`/`.env` hygiene, `gitleaks` + `trufflehog` dual-engine hooks, multi-repo installer, weekly full-history audit, server-side push protection. |
 | [✍️ Git Commit Conventions](git-commit-conventions.md) | Clean, consistent commit messages (Conventional-Commits style) with real safety rails — no force-push to main, no rewriting pushed commits, no AI attribution trailers, secret scan before commit. |
+| [⚡ Faster Website in 10 Checks](web-performance.md) | Measure, fix, measure again: modern image formats, image dimensions, lazy loading, font loading, code splitting, unused code, Brotli/gzip, CDN, cache headers, Core Web Vitals targets. English + 🇹🇷 Türkçe. |
 
 ## 🎯 Why these exist
 
