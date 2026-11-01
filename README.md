@@ -15,6 +15,7 @@ up a real, battle-tested engineering practice — the right way, with the detail
 | [✍️ Git Commit Conventions](git-commit-conventions.md) | Clean, consistent commit messages (Conventional-Commits style) with real safety rails — no force-push to main, no rewriting pushed commits, no AI attribution trailers, secret scan before commit. |
 | [⚡ Faster Website in 10 Checks](web-performance.md) | Measure, fix, measure again: modern image formats, image dimensions, lazy loading, font loading, code splitting, unused code, Brotli/gzip, CDN, cache headers, Core Web Vitals targets. English + 🇹🇷 Türkçe. |
 | [🖥️ Windows Performance](windows-performance.md) | Measured, safe Windows tuning: discovers the exact PC, baseline first, one change at a time, rollback for anything that does not help. Security stays on. English + 🇹🇷 Türkçe. |
+| [🎮 Windows Gaming Performance](windows-gaming-performance.md) | Highest stable gaming performance with proof: frametime and latency measured, one change at a time, GPU undervolt plus overclock, stability gates, per-game profiles, rollback that survives reboots. English + 🇹🇷 Türkçe. |
 
 ## 🎯 Why these exist
 
