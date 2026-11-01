@@ -126,6 +126,7 @@ At the start of every session, before anything else:
   present. If it does not match, stop and ask me to save it by hand.
 
     performance-optimization/
+        README.md
         STATE.md
         rollback.ps1
         reports/
@@ -177,6 +178,7 @@ Every change, including rejected ones, gets a decision card in `OPTIMIZATIONS_AP
     Old:
     New:
     Why (evidence):
+    Expected effect: figure from the evidence, or "unknown until measured"
     Measured effect:
     Noise floor:
     Risk:
@@ -185,8 +187,9 @@ Every change, including rejected ones, gets a decision card in `OPTIMIZATIONS_AP
 
 ## NON-NEGOTIABLE RULES
 • Never turn off Defender, Firewall, Windows Update, Secure Boot, TPM, BitLocker, VBS or Memory
-  Integrity, not even for a test. If evidence points at one of them, give me the evidence, the risk
-  and a safe alternative. The decision and the action are mine.
+  Integrity, not even for a test. The one exception is BitLocker suspension under the Phase 0 rule, and
+  it is never decryption. If evidence points at one of them, give me the evidence, the risk and a safe
+  alternative. The decision and the action are mine.
 • If Memory Integrity, the vulnerable driver blocklist or Defender blocks a tool, update or replace
   the tool (the WinRing0 family is a known example). Never disable the protection, never restore a
   quarantined driver, never add an exclusion to get around it. A tool that asks for these is refused.
@@ -368,19 +371,26 @@ question for me, never a guess.
 • GPU: exact board model, not just the chip. VBIOS, power limit range, PCIe link in use under load,
   ReBAR, whether Hot Spot is exposed.
 • RAM: modules, slots, channel mode, IC if readable, XMP or EXPO rating, active speed and timings.
-• Motherboard: model, revision, BIOS version, and the vendor's BIOS release notes.
+• Motherboard: model, revision, chipset, BIOS version and date, and the vendor's BIOS release notes.
 • Cooling: AIO or air, model, how pump and fans are controlled, case airflow.
 • PSU: model and wattage. Windows usually cannot read this, so ask me. It is required before any
   power limit increase.
-• Storage: SMART, firmware, TRIM, fullness, which disk holds the games.
+• Storage: disk model, NVMe or SATA connection, SMART, firmware, TRIM, fullness, which disk holds the games.
 • Windows: build, power plan, Game Mode, HAGS, services, tasks, drivers, Event Viewer history, WHEA
   history, VBS and Memory Integrity state (elevated
   `Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard`, `msinfo32`).
+• Security state, elevated, saved as the reference for the Definition of Done: Defender
+  (`Get-MpComputerStatus`), Firewall (`Get-NetFirewallProfile`), Windows Update (service start type, any
+  pause), Secure Boot (`Confirm-SecureBootUEFI`), TPM (`Get-Tpm`), BitLocker (`manage-bde -status`), VBS
+  and Memory Integrity.
+• Drivers: a table for GPU, chipset, NIC and storage with installed version, date, current version on the
+  vendor's official page, and the URL. Reading only here. An install is a later level B change.
 • Windows edition: edition and version (10, 11, LTSC and so on), support status, and traces of earlier
   debloating or a modified install. No reinstall or version upgrade without my approval.
 • Display: every monitor, real Hz, cable, port, DSC, bit depth, RGB range, HDR, VRR.
 • Input: mouse, keyboard, polling rates, USB layout.
-• Network: adapters, link speed, Wi-Fi or Ethernet, driver, router model.
+• Network: adapters, link speed, Wi-Fi or Ethernet, driver, router model, current DNS, Wi-Fi band and
+  channel, NIC power management state.
 • Games: Steam, Epic, Riot, Battle.net, EA and Ubisoft libraries, my 5 most played games, and for each
   the engine, API and anti cheat.
 • Earlier tweaks, read-only: leftovers of tweak packs in boot entries, pagefile, autotuning, MTU,
@@ -405,9 +415,10 @@ No tuning changes. Pick one tool per metric at runtime and keep it to the end. F
 Protocol, including the noise floor. Output: `reports/baseline_results.json` and
 `PERFORMANCE_BASELINE.md`.
 
-System: boot time, idle CPU and RAM, CPU single and multi score, RAM bandwidth and latency, GPU
-synthetic score, SSD, DPC/ISR (LatencyMon, WPR/WPA for deep traces), download speed, upload speed,
-ping, jitter, packet loss, bufferbloat, peak temperatures, power, my noise impression.
+System: boot time, repeatable app launch time (same apps, same start state, scripted), idle CPU and RAM,
+CPU single and multi score, RAM bandwidth and latency, GPU synthetic score, SSD sequential and random read
+and write, DPC/ISR (LatencyMon, WPR/WPA for deep traces), download speed, upload speed, ping, jitter, packet
+loss, bufferbloat, peak temperatures, power, my noise impression.
 
 Each game: one repeatable scene, then average FPS, 1% low, 0.1% low, frametime deviation, stutter
 count, input latency.
@@ -415,7 +426,9 @@ count, input latency.
 Diagnose each game as one of: GPU, CPU (render thread or main thread), RAM, VRAM pressure, disk,
 thermal or power limit, interrupts, FPS ceiling. Usage percentage alone is not evidence. Show cause
 and effect from data, for example:
-• Lower only the render resolution. FPS rises: GPU limited. FPS stays: something else is the limit.
+• With my approval (level B), lower only the render resolution for a test run, then restore it and read
+  it back. Open a decision card for this test too and write the result `restored`. FPS rises: GPU limited.
+  FPS stays: something else is the limit. This is a diagnostic, not a tuning change.
 • Line up frametime spikes with throttle flags, disk activity, VRAM use and DPC events.
 Write bottleneck, evidence and confidence per game.
 
@@ -441,6 +454,9 @@ must-keep list.
 The usual real offenders are RGB and peripheral software and overlays. Inspect them first, then let
 the measurements decide.
 Inspect audio drivers and virtual surround software as DPC/ISR sources too, with the Phase 2 tool.
+Per-process table, at idle and during a game: the top users of CPU, RAM and disk, logged from
+`Win32_PerfFormattedData_PerfProc_Process`, whose property names are not localized. Logging adds load, so
+it never runs inside a measured run. A high reading picks what to inspect, the cost still comes from a test.
 
 A/B test each of these alone, with the full protocol, on one representative game or built-in benchmark,
 then confirm kept changes on the other games: power plan, Game Mode, HAGS, fullscreen
@@ -493,7 +509,11 @@ Clock stretching trap: judge by effective clock and score, never by the MHz you 
 clock rises and effective clock or score does not, the setting has failed.
 
 AMD:
-• Options: PBO, per-core Curve Optimizer, boost override, power limits.
+• Target, as on the GPU: negative curve (undervolt) and boost increase together. Set the curve first, then
+  raise boost in small steps, each step one change at level C. Judge each step by score and effective
+  clock, and leave a stable margin below the last good step. If the platform locks this, say so plainly.
+• Options: PBO, per-core Curve Optimizer, boost override, power limits, Eco mode (a lower power limit,
+  level C, compared on temperature, noise and performance per watt).
 • X3D capabilities differ by generation. Read AMD's page for this exact CPU and offer only what it
   supports.
 • Find each core's limit separately with CoreCycler, using its current documentation for start values
@@ -502,11 +522,14 @@ AMD:
 
 Intel:
 • Read Intel's specification for this CPU for power limits and load line. Board defaults are not
-  evidence. On 13th and 14th generation the Phase 1 ceiling applies.
-• Detect from what the BIOS and XTU actually offer whether undervolting is locked on this CPU, and say
-  so plainly. If it is locked, that path is closed. Check XTU support for this CPU at runtime. If XTU will not
-  start because of VBS, report a tool conflict, not a CPU lock. VBS stays on. Use only what Intel's page
-  offers without turning a protection off, or the BIOS path if the CPU has one.
+  evidence. On 13th and 14th generation the Phase 1 ceiling applies, including the OC and power limit warning.
+• Detect from what the BIOS and XTU actually offer whether undervolting is locked on this CPU, and say so
+  plainly. If it is locked, that path is closed. If it is not locked and the Phase 1 risk ceiling allows it,
+  apply the same single-change method as in the AMD section: lower the voltage first, then raise the clock
+  in small steps, judged by score and effective clock, with a stable margin left. Check XTU support for this
+  CPU at runtime. If XTU will not start because of VBS, report a tool conflict, not a CPU lock. VBS stays
+  on. Use only what Intel's page offers without turning a protection off, or the BIOS path if the CPU has
+  one.
 • E-core behaviour and APO: read Intel's current information for this CPU and these games.
 • Turbo Boost and Adaptive Boost: evaluate their state only if Intel's page shows this platform supports
   them. On 13th and 14th generation the Phase 1 ceiling still applies.
@@ -526,7 +549,8 @@ Output: `RAM_OPTIMIZATION.md`.
 • Memory controller voltage: limits differ per vendor and generation. Read the manufacturer's limit
   for this exact platform at runtime. No limit found, no voltage change.
 • One timing group at a time, with the RAM gate before the next.
-• The pagefile stays on. No RAM cleaner, no cache flushing.
+• The pagefile stays on. Read its size and location (`Win32_PageFileUsage`, `Win32_PageFileSetting`) and
+  analyse them. No RAM cleaner, no cache flushing.
 • Measure standby, cached, committed and available memory, at idle and during the game.
 • Memory leak: over a long session, log private bytes per process (`Get-Process`, `PrivateMemorySize64`)
   and report any process that keeps growing.
@@ -611,9 +635,12 @@ Results go in `SYSTEM_ANALYSIS.md`, and changes go in `OPTIMIZATIONS_APPLIED.md`
 • SMART and temperature, under load too. A SMART warning stops tuning, and backing up comes first.
 • TRIM: `fsutil behavior query DisableDeleteNotify`, where 0 means enabled. NTFS and ReFS are reported
   separately.
-• Firmware: read the vendor's notes. An update is level C, with a data backup first.
+• Firmware: read the vendor's notes. An update is level C, with a data backup first. A storage driver
+  install follows the Phase 1 table and is level B.
 • Fullness: show what takes the space. Any deletion list comes to me first, with sizes.
 • Indexing: exclude game folders only if a measurement justifies it.
+• Startup disk activity: after a normal boot, log disk use per process with the Phase 3 method until it
+  settles, and name the top users. Startup entries change only under Phase 3 rules.
 • Shader cache: never wipe it as a tuning step, because it can bring back compile stutter. Clear it only
   to diagnose a specific problem, after showing me, and judge the first run separately.
 • DirectStorage: find which of my games use it and read Microsoft's current requirements. Check BypassIO
@@ -634,12 +661,20 @@ Report latency and download speed separately, always. Output: `NETWORK_OPTIMIZAT
 • Measure upload speed and its stability too, before any network change. Bufferbloat is measured under
   download load and under upload load.
 • Compare Wi-Fi and Ethernet where both exist.
+• Read-only, before any network change: current DNS and its resolution time
+  (`Get-DnsClientServerAddress`, `Resolve-DnsName -Server`, `Measure-Command`), Windows TCP settings
+  (`Get-NetTCPSetting`), apps using the network per process at idle and during a game, NIC power management
+  (`Get-NetAdapterPowerManagement`). DNS time never counts as a ping result.
+• Wi-Fi, if in use: band, channel, signal quality and networks on the same channel
+  (`netsh wlan show interfaces`, `netsh wlan show networks mode=bssid`). That text is localized, so you
+  read it, scripts do not.
 • NIC driver and properties (EEE, Interrupt Moderation, RSS, offload): one at a time, measured. Microsoft's
   server tuning guide treats disabling Interrupt Moderation as a trade of CPU for latency and says
   offloads are usually beneficial, so turning either off is no default gaming fix. Changing a property
   can drop the link for a moment.
 • Router SQM or QoS: if the router offers it, write a manual step card from the router's documentation.
-• Slow Steam or Epic downloads: separate disk, CDN, ISP and app limit, with a measurement for each.
+• Slow Steam or Epic downloads: separate disk, CDN, ISP and app limit, with a measurement for each. In
+  Steam, check whether disk unpacking and write speed during the download limits the speed.
 • MTU, autotuning and registry TCP tweaks are not touched without evidence, and the D list stands.
 
 ## PHASE 12: DISPLAY
@@ -648,7 +683,8 @@ source.
 
 • Cable and port: confirm they carry the target mode.
 • Monitor firmware: check the version. Update only through the vendor's route, with my approval (level C).
-• Real Hz: read what Windows reports, then verify with the TestUFO frame skipping test.
+• Real Hz: read what Windows reports, then verify with the TestUFO frame skipping test. If real Hz is
+  below my target, set a mode Windows offers, as a level B decision card (old value, rollback).
 • DSC: find out if it is active. DSR, DLDSR and G-SYNC behaviour with DSC varies by monitor and port, so
   confirm it for this monitor.
 • 10-bit, and RGB Full against Limited: GPU output and monitor must match.
@@ -668,7 +704,9 @@ source.
 ## PHASE 13: MOUSE AND INPUT
 Report in `DISPLAY_INPUT_REPORT.md`.
 
-• Read the Enhance pointer precision state, and confirm per game whether it uses raw input.
+• Read the Enhance pointer precision state and the Windows pointer speed (`HKCU:\Control Panel\Mouse`),
+  and confirm per game whether it uses raw input. Set them only as a level B change, with the old values
+  in `rollback.ps1`, because they change my aim feel.
 • Polling rate A/B: 1000, 2000, 4000, 8000 Hz, whichever the device supports. Higher polling has a CPU
   cost, so measure CPU load and 1% low at each rate. Keep the highest rate that causes no regression.
   Ignore vendor percentages.
@@ -683,6 +721,9 @@ Report in `DISPLAY_INPUT_REPORT.md`.
 Write `games/<game>/profile.md` for each game: engine, API, anti cheat, test scene, a table of FPS and
 visual cost per setting (one setting at a time), driver profile, launch options, config backup,
 upscaler, Reflex or Anti-Lag, FPS cap, VRAM use. The summary goes in `GAME_PROFILES.md`.
+
+Global driver settings, low latency and shader cache included, go on their own A/B list, apart from the
+game profiles: one at a time, level B, under the full protocol, old value recorded for rollback.
 
 Three profiles per game: Competitive, Balanced, Visual.
 • My current visual quality is not lowered without permission. Any visual loss in Competitive needs
@@ -711,6 +752,8 @@ is final). Write the durations per tool in `STATE.md` before starting.
 | Real use | A long real game session for each main game, on the tuned profile |
 | Idle and light | Overnight idle, low load work |
 | Power states | Sleep and wake cycles, cold boot cycles |
+| Storage health | SMART read before and after medium and overnight gates (Phase 10): no new warning, no rising error counter, disk temperature inside the official limit |
+| Network consistency | Long session, local and internet paths apart: ping, jitter, packet loss, TCP retransmissions (Phase 11). No link drop, no rise beyond the noise floor against the reference |
 
 Confirm at runtime what each edition allows (test length, stop on error, paid stress tests). A gate you
 could not run is "not run", never "passed", and it stays open in the report. MemTest86 boots from USB,
@@ -755,9 +798,10 @@ Repeat the baseline under the same conditions, with the same tools.
 
 `BENCHMARK_COMPARISON.md` has one row per metric: before median, after median, spread, noise floor,
 verdict (better, no effect, worse, could not be measured).
-• System: boot time, idle CPU, idle RAM, CPU single score, CPU multi score, RAM bandwidth, RAM latency, GPU
-  synthetic score, SSD, DPC/ISR, download speed, upload speed, ping, jitter, packet loss, bufferbloat, peak
-  CPU and GPU temperature, power, noise impression.
+• System: boot time, app launch time, idle CPU, idle RAM, CPU single score, CPU multi score, RAM bandwidth,
+  RAM latency, GPU synthetic score, SSD sequential and random read and write, DPC/ISR, download speed,
+  upload speed, ping, jitter, packet loss, bufferbloat, peak CPU and GPU temperature, power, noise
+  impression.
 • Per game: average FPS, 1% low, 0.1% low, frametime deviation, stutter count, input latency with its
   label, and base FPS where frame generation is on.
 
@@ -786,12 +830,19 @@ Begin now, and work in exactly this order:
 7. Continue phase by phase. An item from a later phase waits for that phase unless you show it is
    independent. Phases 4 to 7 never stack: each starts only after the previous one passed its gate and
    became the new reference.
+   If a phase is blocked for a reason unrelated to safety (no tool passes, a source is unreachable, a game
+   is unavailable), record the blocker in `STATE.md` and continue with a safe phase that does not depend on
+   it. Waiting for a test, a reboot or my manual step is not a blocker. A stop for safety or security stays
+   a stop: Phase 0, the stop rule under Non-Negotiable Rules, gates, SMART warnings. A blocked phase among
+   Phases 4 to 7 also holds the later ones in that chain.
 
 ## DEFINITION OF DONE
 • Every game has before and after numbers from the same conditions.
 • All gates passed. A gate that was not run is named, and what it covers is not called final.
 • Rollback was tested for real: one applied change reverted by `rollback.ps1` and confirmed by read
   back, and the dry run still passes on the final state.
+• Security state matches Phase 1: Defender, Firewall, Windows Update, Secure Boot, TPM, BitLocker, VBS and
+  Memory Integrity, read again and compared one by one. A difference is reported, and the work is not done.
 • Everything still open is listed: not run, could not be measured, waiting for my decision.
 ```
 
@@ -922,6 +973,7 @@ Her oturumun başında, her şeyden önce:
   yerinde olmalı. Eşleşmiyorsa dur ve dosyayı elle kaydetmemi iste.
 
     performance-optimization/
+        README.md
         STATE.md
         rollback.ps1
         reports/
@@ -976,6 +1028,7 @@ Reddedilenler dahil her değişiklik `OPTIMIZATIONS_APPLIED.md` içinde bir kara
     Eski:
     Yeni:
     Gerekçe (kanıt):
+    Beklenen etki: kanıttan gelen değer ya da "ölçülene kadar bilinmiyor"
     Ölçülen etki:
     Gürültü payı:
     Risk:
@@ -984,8 +1037,9 @@ Reddedilenler dahil her değişiklik `OPTIMIZATIONS_APPLIED.md` içinde bir kara
 
 ## KIRILMAZ KURALLAR
 • Defender, Firewall, Windows Update, Secure Boot, TPM, BitLocker, VBS ve Memory Integrity'yi test için
-  bile kapatma. Kanıt bunlardan birini gösteriyorsa bana kanıtı, riski ve güvenli alternatifi sun. Karar
-  da işlem de benimdir.
+  bile kapatma. Tek istisna, Faz 0 kuralıyla BitLocker'ı askıya almaktır ve bu asla şifre çözme değildir.
+  Kanıt bunlardan birini gösteriyorsa bana kanıtı, riski ve güvenli alternatifi sun. Karar da işlem de
+  benimdir.
 • Memory Integrity, savunmasız sürücü engel listesi ya da Defender bir aracı engellerse aracı güncelle
   ya da değiştir (WinRing0 ailesi bilinen bir örnektir). Korumayı asla kapatma, karantinadaki sürücüyü
   asla geri yükleme, engeli aşmak için istisna ekleme. Bunları isteyen araç reddedilir.
@@ -1167,18 +1221,25 @@ dönüşür, asla tahmin edilmez.
 • GPU: yalnız çip değil, tam kart modeli. VBIOS, güç limiti aralığı, yük altında kullanılan PCIe bağlantısı,
   ReBAR, Hot Spot'un sunulup sunulmadığı.
 • RAM: modüller, yuvalar, kanal modu, okunabiliyorsa IC, XMP ya da EXPO değeri, aktif hız ve zamanlamalar.
-• Anakart: model, revizyon, BIOS sürümü ve üreticinin BIOS sürüm notları.
+• Anakart: model, revizyon, chipset, BIOS sürümü ve tarihi, üreticinin BIOS sürüm notları.
 • Soğutma: AIO ya da hava, model, pompa ve fanların nasıl kontrol edildiği, kasa hava akışı.
 • PSU: model ve güç. Windows bunu genelde okuyamaz, bana sor. Güç limiti artışından önce şarttır.
-• Depolama: SMART, firmware, TRIM, doluluk, oyunların bulunduğu disk.
+• Depolama: disk modeli, NVMe ya da SATA bağlantısı, SMART, firmware, TRIM, doluluk, oyunların bulunduğu disk.
 • Windows: build, güç planı, Game Mode, HAGS, servisler, görevler, sürücüler, Event Viewer geçmişi, WHEA
   geçmişi, VBS ve Memory Integrity durumu (yükseltilmiş
   `Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard`, `msinfo32`).
+• Güvenlik durumu, yükseltilmiş, Bitiş Tanımı için referans olarak kaydedilir: Defender
+  (`Get-MpComputerStatus`), Firewall (`Get-NetFirewallProfile`), Windows Update (servis başlangıç türü,
+  varsa duraklatma), Secure Boot (`Confirm-SecureBootUEFI`), TPM (`Get-Tpm`), BitLocker
+  (`manage-bde -status`), VBS ve Memory Integrity.
+• Sürücüler: GPU, chipset, NIC ve depolama için kurulu sürüm, tarih, üreticinin resmi sayfasındaki güncel
+  sürüm ve URL tablosu. Burada yalnız okunur. Kurulum sonraki bir B seviyesi değişikliktir.
 • Windows sürümü: edition ve sürüm (10, 11, LTSC gibi), destek durumu, daha önce debloat ya da modifiye
   kurulum izi. Onayım olmadan yeniden kurulum ya da sürüm yükseltme yok.
 • Ekran: her monitör, gerçek Hz, kablo, port, DSC, bit derinliği, RGB aralığı, HDR, VRR.
 • Girdi: mouse, klavye, polling değerleri, USB yerleşimi.
-• Ağ: adaptörler, bağlantı hızı, Wi-Fi ya da Ethernet, sürücü, router modeli.
+• Ağ: adaptörler, bağlantı hızı, Wi-Fi ya da Ethernet, sürücü, router modeli, mevcut DNS, Wi-Fi bandı ve
+  kanalı, NIC güç yönetimi durumu.
 • Oyunlar: Steam, Epic, Riot, Battle.net, EA ve Ubisoft kütüphaneleri, en çok oynadığım 5 oyun ve her biri
   için motor, API, anti cheat.
 • Önceki ayarlar, salt okunur: tweak paketlerinin boot kayıtlarında, pagefile'da, autotuning'de, MTU'da,
@@ -1202,8 +1263,9 @@ uyarıları. Şu sınıfların bu makineye uyup uymadığını kontrol et, ezber
 Ayar değişikliği yok. Metrik başına bir aracı çalışma anında seç ve sonuna kadar onu kullan. Gürültü payı dahil
 Ölçüm Protokolü'ne uy. Çıktı: `reports/baseline_results.json` ve `PERFORMANCE_BASELINE.md`.
 
-Sistem: boot süresi, boşta CPU ve RAM, CPU tek ve çok çekirdek skoru, RAM bant genişliği ve
-gecikmesi, GPU sentetik skoru, SSD, DPC/ISR (LatencyMon, derin izleme için WPR/WPA), indirme hızı,
+Sistem: boot süresi, tekrarlanabilir uygulama açılış süresi (aynı uygulamalar, aynı başlangıç durumu,
+scriptle), boşta CPU ve RAM, CPU tek ve çok çekirdek skoru, RAM bant genişliği ve gecikmesi, GPU sentetik
+skoru, SSD sıralı ve rastgele okuma, yazma, DPC/ISR (LatencyMon, derin izleme için WPR/WPA), indirme hızı,
 yükleme hızı, ping, jitter, paket kaybı, bufferbloat, en yüksek sıcaklıklar, güç, gürültü izlenimim.
 
 Her oyun: tekrarlanabilir tek sahne, sonra ortalama FPS, 1% low, 0.1% low, frametime sapması, takılma
@@ -1212,7 +1274,9 @@ sayısı, input gecikmesi.
 Her oyunu şunlardan biri olarak teşhis et: GPU, CPU (render ya da ana thread), RAM, VRAM baskısı, disk, termal
 ya da güç sınırı, kesintiler, FPS tavanı. Kullanım yüzdesi tek başına kanıt değildir. Neden sonuç
 ilişkisini veriyle göster, örneğin:
-• Yalnız render çözünürlüğünü düşür. FPS yükseliyorsa GPU sınırı var. FPS aynı kalıyorsa sınır başka yerde.
+• Onayımla (B seviyesi) yalnız render çözünürlüğünü bir test koşusu için düşür, sonra eski değerine döndür
+  ve geri oku. Bu test için de karar kartı aç, sonucu `restored` yaz. FPS yükseliyorsa GPU sınırı var. FPS
+  aynı kalıyorsa sınır başka yerde. Bu ince ayar değişikliği değil, teşhistir.
 • Frametime sıçramalarını throttle bayrakları, disk etkinliği, VRAM kullanımı ve DPC olaylarıyla eşleştir.
 Oyun başına darboğaz, kanıt ve güven düzeyi yaz.
 
@@ -1237,6 +1301,9 @@ ancak test, yeniden başlatma ve "çalışması şart" listemin kontrolünden so
 Gerçek suçlular genelde RGB ve çevre birimi yazılımları ile overlay'lerdir. Önce onlara bak, sonra kararı
 ölçüm versin.
 Ses sürücülerini ve sanal surround yazılımlarını da Faz 2 aracıyla DPC/ISR kaynağı olarak incele.
+Süreç başına tablo, boşta ve oyun sırasında: en çok CPU, RAM ve disk kullananlar, özellik adları
+yerelleştirilmemiş olan `Win32_PerfFormattedData_PerfProc_Process` üzerinden loglanır. Log yük bindirir, bu
+yüzden ölçüm koşusunun içinde çalışmaz. Yüksek değer neyin inceleneceğini seçtirir, maliyet yine testten gelir.
 
 Şunların her birini tek başına, tam protokolle, temsili bir oyunda ya da yerleşik benchmark'ta A/B
 testinden geçir, korunanları diğer oyunlarda doğrula: güç planı, Game Mode, HAGS, tam ekran
@@ -1290,7 +1357,11 @@ Clock stretching tuzağı: ayarladığın MHz'e göre değil, effective clock ve
 hızı yükseliyor ama effective clock ya da skor yükselmiyorsa ayar başarısızdır.
 
 AMD:
-• Seçenekler: PBO, çekirdek başına Curve Optimizer, boost override, güç limitleri.
+• Hedef, GPU'daki gibi: negatif eğri (undervolt) ve boost artışı birlikte. Önce eğriyi kur, sonra boost'u
+  küçük adımlarla artır, her adım C seviyesinde tek değişikliktir. Her adımı skor ve effective clock ile
+  değerlendir, son iyi adımın altında stabil pay bırak. Platform kilitliyse bunu açıkça söyle.
+• Seçenekler: PBO, çekirdek başına Curve Optimizer, boost override, güç limitleri, Eco modu (daha düşük güç
+  limiti, C seviyesi, sıcaklık, gürültü ve watt başına performansla karşılaştırılır).
 • X3D yetenekleri nesle göre değişir. Bu işlemcinin AMD sayfasını oku ve yalnız desteklediklerini öner.
 • Her çekirdeğin sınırını CoreCycler ile ayrı bul; başlangıç değerleri ve yöntem için güncel dokümanını
   kullan. CoreCycler çekirdekleri 0'dan, Ryzen Master 1'den sayar, sonucu kaydetmeden önce eşleştir. Her
@@ -1298,11 +1369,14 @@ AMD:
 
 Intel:
 • Güç limitleri ve load line için bu işlemcinin Intel spesifikasyonunu oku. Anakart varsayılanları kanıt
-  değildir. 13. ve 14. nesilde Faz 1'deki tavan geçerlidir.
+  değildir. 13. ve 14. nesilde Faz 1'deki tavan, OC ve güç limiti uyarısı dahil, geçerlidir.
 • BIOS'un ve XTU'nun gerçekte sunduklarından bu işlemcide undervolt kilidi olup olmadığını tespit et ve bunu
-  açıkça söyle. Kilitliyse o yol kapalıdır. Bu işlemci için XTU desteğini çalışma anında kontrol et. XTU, VBS
-  yüzünden başlamıyorsa işlemci kilidi değil araç çakışması raporla. VBS açık kalır. Yalnız Intel'in
-  sayfasında bir korumayı kapatmadan sunulan seçenekleri ya da işlemcide varsa BIOS yolunu kullan.
+  açıkça söyle. Kilitliyse o yol kapalıdır. Kilitli değilse ve Faz 1 risk tavanı izin veriyorsa AMD
+  bölümündeki aynı tek değişiklik yöntemini uygula: önce voltajı düşür, sonra frekansı küçük adımlarla
+  artır, skor ve effective clock ile değerlendir, stabil pay bırak. Bu işlemci için XTU desteğini çalışma
+  anında kontrol et. XTU, VBS yüzünden başlamıyorsa işlemci kilidi değil araç çakışması raporla. VBS açık
+  kalır. Yalnız Intel'in sayfasında bir korumayı kapatmadan sunulan seçenekleri ya da işlemcide varsa BIOS
+  yolunu kullan.
 • E-core davranışı ve APO: bu işlemci ve bu oyunlar için Intel'in güncel bilgisini oku.
 • Turbo Boost ve Adaptive Boost: durumlarını yalnız Intel'in sayfası bu platformun desteklediğini
   gösteriyorsa değerlendir. 13. ve 14. nesilde Faz 1'deki tavan yine geçerlidir.
@@ -1322,7 +1396,8 @@ Intel:
 • Bellek kontrolcüsü voltajı: sınırlar üreticiye ve nesle göre değişir. Bu platformun üretici sınırını
   çalışma anında oku. Sınır bulunamadıysa voltaj değişikliği yok.
 • Tek seferde bir zamanlama grubu, sonrakinden önce RAM kapısı.
-• Pagefile açık kalır. RAM temizleyici yok, cache boşaltma yok.
+• Pagefile açık kalır. Boyutunu ve konumunu oku (`Win32_PageFileUsage`, `Win32_PageFileSetting`), analiz
+  et. RAM temizleyici yok, cache boşaltma yok.
 • Standby, cached, committed ve available belleği boşta ve oyun sırasında ölç.
 • Memory leak: uzun oturumda süreç başına private bytes artışını izle (`Get-Process`,
   `PrivateMemorySize64`), büyümeyi sürdüren süreci raporla.
@@ -1405,9 +1480,12 @@ Sonuçlar `SYSTEM_ANALYSIS.md`, değişiklikler `OPTIMIZATIONS_APPLIED.md` dosya
 
 • SMART ve sıcaklık, yük altında da. SMART uyarısı ayar işini durdurur, önce yedek alınır.
 • TRIM: `fsutil behavior query DisableDeleteNotify`, 0 açık demektir. NTFS ve ReFS ayrı raporlanır.
-• Firmware: üreticinin notlarını oku. Güncelleme C seviyesidir, önce veri yedeği alınır.
+• Firmware: üreticinin notlarını oku. Güncelleme C seviyesidir, önce veri yedeği alınır. Depolama sürücüsü
+  kurulumu Faz 1 tablosuna göre yapılır ve B seviyesidir.
 • Doluluk: yeri neyin kapladığını göster. Her silme listesi boyutlarıyla önce bana gelir.
 • İndeksleme: oyun klasörlerini yalnız ölçüm gerekçe gösteriyorsa hariç tut.
+• Başlangıç disk etkinliği: normal bir açılıştan sonra, disk durulana kadar süreç başına disk kullanımını
+  Faz 3 yöntemiyle logla, en çok kullananları adlandır. Başlangıç kayıtları yalnız Faz 3 kurallarıyla değişir.
 • Shader cache: ayar adımı olarak asla silme, çünkü derleme takılmalarını geri getirebilir. Yalnız belirli
   bir sorunu teşhis etmek için, bana gösterdikten sonra temizle, ilk koşuyu ayrı değerlendir.
 • DirectStorage: oyunlarımdan hangilerinin kullandığını bul ve Microsoft'un güncel gereksinimlerini oku. Bu
@@ -1427,12 +1505,20 @@ Gecikme ve indirme hızını her zaman ayrı raporla. Çıktı: `NETWORK_OPTIMIZ
 • Yükleme hızını ve kararlılığını da herhangi bir ağ değişikliğinden önce ölç. Bufferbloat hem indirme hem
   yükleme yükünde ölçülür.
 • İkisi de varsa Wi-Fi ve Ethernet'i karşılaştır.
+• Salt okunur, herhangi bir ağ değişikliğinden önce: mevcut DNS ve çözümleme süresi
+  (`Get-DnsClientServerAddress`, `Resolve-DnsName -Server`, `Measure-Command`), Windows TCP ayarları
+  (`Get-NetTCPSetting`), boşta ve oyun sırasında süreç başına ağı tüketen uygulamalar, NIC güç yönetimi
+  (`Get-NetAdapterPowerManagement`). DNS süresi asla ping sonucu sayılmaz.
+• Wi-Fi kullanılıyorsa: bant, kanal, sinyal kalitesi ve aynı kanaldaki ağlar
+  (`netsh wlan show interfaces`, `netsh wlan show networks mode=bssid`). Bu çıktı yerelleştirilmiştir,
+  onu sen okursun, scriptler okumaz.
 • NIC sürücüsü ve özellikleri (EEE, Interrupt Moderation, RSS, offload): tek tek, ölçerek. Microsoft'un
   sunucu ayar rehberi Interrupt Moderation'ı kapatmayı CPU karşılığında gecikme kazanma takası olarak ele
   alır ve offload'ların genelde faydalı olduğunu söyler; yani ikisini kapatmak da varsayılan bir oyun çözümü
   değildir. Özellik değiştirmek bağlantıyı bir an kesebilir.
 • Router SQM ya da QoS: router sunuyorsa kendi dokümanından elle adım kartı yaz.
 • Yavaş Steam ya da Epic indirmeleri: disk, CDN, ISS ve uygulama sınırını ayır, her biri için ölçüm yap.
+  Steam'de indirme sırasında disk açma ve yazma hızının hızı sınırlayıp sınırlamadığını kontrol et.
 • MTU, autotuning ve registry TCP ayarlarına kanıtsız dokunulmaz, D listesi geçerlidir.
 
 ## FAZ 12: EKRAN
@@ -1440,7 +1526,8 @@ Gecikme ve indirme hızını her zaman ayrı raporla. Çıktı: `NETWORK_OPTIMIZ
 
 • Kablo ve port: hedef modu taşıdıklarını doğrula.
 • Monitör firmware'i: sürümü kontrol et. Güncelleme yalnız üreticinin yoluyla, onayımla (C seviyesi).
-• Gerçek Hz: Windows'un bildirdiğini oku, sonra TestUFO frame skipping testiyle doğrula.
+• Gerçek Hz: Windows'un bildirdiğini oku, sonra TestUFO frame skipping testiyle doğrula. Gerçek Hz
+  hedefimin altındaysa Windows'un sunduğu bir modu B seviyesi karar kartıyla ayarla (eski değer, geri alma).
 • DSC: aktif olup olmadığını bul. DSR, DLDSR ve G-SYNC'in DSC ile davranışı monitöre ve porta göre
   değişir, bu monitör için doğrula.
 • 10-bit ve RGB Full ile Limited: GPU çıkışı ve monitör eşleşmeli.
@@ -1459,7 +1546,9 @@ Gecikme ve indirme hızını her zaman ayrı raporla. Çıktı: `NETWORK_OPTIMIZ
 ## FAZ 13: MOUSE VE GİRDİ
 Rapor `DISPLAY_INPUT_REPORT.md` dosyasına gider.
 
-• Enhance pointer precision durumunu oku, her oyunun raw input kullanıp kullanmadığını doğrula.
+• Enhance pointer precision durumunu ve Windows imleç hızını oku (`HKCU:\Control Panel\Mouse`), her oyunun
+  raw input kullanıp kullanmadığını doğrula. Bunları yalnız B seviyesi değişiklik olarak ayarla, eski
+  değerleri `rollback.ps1` dosyasına kaydet, çünkü nişan hissimi değiştirirler.
 • Polling rate A/B: cihazın desteklediği kadarıyla 1000, 2000, 4000, 8000 Hz. Yüksek polling'in CPU maliyeti
   vardır, her değerde CPU yükünü ve 1% low'u ölç. Gerileme yaratmayan en yüksek değeri koru. Üretici
   yüzdelerini dikkate alma.
@@ -1474,6 +1563,9 @@ Rapor `DISPLAY_INPUT_REPORT.md` dosyasına gider.
 Her oyun için `games/<oyun>/profile.md` yaz: motor, API, anti cheat, test sahnesi, ayar başına FPS ve görsel
 maliyet tablosu (tek tek), sürücü profili, başlatma seçenekleri, config yedeği, upscaler, Reflex ya da
 Anti-Lag, FPS sınırı, VRAM kullanımı. Özet `GAME_PROFILES.md` dosyasına gider.
+
+Düşük gecikme ve shader cache dahil global sürücü ayarları, oyun profillerinden ayrı kendi A/B listesine
+girer: tek tek, B seviyesinde, tam protokolle, eski değer geri alma için kaydedilir.
 
 Oyun başına üç profil: Competitive, Balanced, Visual.
 • Mevcut görsel kalitem izinsiz düşürülmez. Competitive'deki her görsel kayıp açık onayımı gerektirir ve
@@ -1503,6 +1595,8 @@ Aşamalar: hızlı (dakikalar, her adımdan sonra), orta (saatler, her fazdan so
 | Gerçek kullanım | Her ana oyun için ayarlı profille uzun gerçek oyun oturumu |
 | Boşta ve hafif | Gece boyu boşta, düşük yüklü çalışma |
 | Güç durumları | Uyku ve uyanma çevrimleri, soğuk açılış çevrimleri |
+| Depolama sağlığı | Orta ve gece kapılarından önce ve sonra SMART okunur (Faz 10): yeni uyarı yok, artan hata sayacı yok, disk sıcaklığı resmi sınırın içinde |
+| Ağ tutarlılığı | Uzun oturum, yerel ve internet yolu ayrı: ping, jitter, paket kaybı, TCP retransmission (Faz 11). Bağlantı kopması yok, referansa göre gürültü payını aşan artış yok |
 
 Her sürümün neye izin verdiğini çalışma anında doğrula (test süresi, hatada durma, ücretli stres testleri).
 Çalıştıramadığın kapı "çalıştırılmadı" olur, asla "geçti" değil, ve raporda açık kalır. MemTest86 USB'den
@@ -1546,9 +1640,10 @@ Baseline'ı aynı koşullarda, aynı araçlarla tekrarla.
 
 `BENCHMARK_COMPARISON.md` metrik başına bir satır içerir: önceki medyan, sonraki medyan, sapma, gürültü payı,
 hüküm (daha iyi, etkisiz, daha kötü, ölçülemedi).
-• Sistem: boot süresi, boşta CPU, boşta RAM, CPU tek çekirdek skoru, CPU çok çekirdek skoru, RAM bant
-  genişliği, RAM gecikmesi, GPU sentetik skoru, SSD, DPC/ISR, indirme hızı, yükleme hızı, ping, jitter,
-  paket kaybı, bufferbloat, en yüksek CPU ve GPU sıcaklığı, güç, gürültü izlenimi.
+• Sistem: boot süresi, uygulama açılış süresi, boşta CPU, boşta RAM, CPU tek çekirdek skoru, CPU çok
+  çekirdek skoru, RAM bant genişliği, RAM gecikmesi, GPU sentetik skoru, SSD sıralı ve rastgele okuma,
+  yazma, DPC/ISR, indirme hızı, yükleme hızı, ping, jitter, paket kaybı, bufferbloat, en yüksek CPU ve GPU
+  sıcaklığı, güç, gürültü izlenimi.
 • Oyun başına: ortalama FPS, 1% low, 0.1% low, frametime sapması, takılma sayısı, etiketiyle input gecikmesi,
   frame generation açıksa temel FPS.
 
@@ -1575,12 +1670,19 @@ değişti, oyun başına ölçülen sonuç, açık kalanlar ve geri dönüş yol
    O ilk testten önce Faz 9'daki soğutma kontrol yöntemini oku.
 7. Faz faz ilerle. Sonraki bir faza ait madde, bağımsız olduğunu göstermedikçe o fazı bekler. Faz 4 ile 7
    arası üst üste yığılmaz: her biri ancak önceki kapısını geçip yeni referans olduğunda başlar.
+   Bir faz güvenlikle ilgisiz bir nedenle tıkanırsa (hiçbir araç geçmiyor, kaynağa ulaşılamıyor, oyun
+   erişilemiyor), engeli `STATE.md` dosyasına yaz ve ona bağlı olmayan güvenli bir fazla devam et. Testi,
+   yeniden başlatmayı ya da elle adımımı beklemek tıkanma değildir. Güvenlik nedeniyle duruşlar aynen durur:
+   Faz 0, Kırılmaz Kurallar'daki durdurma kuralı, kapılar, SMART uyarısı. Faz 4 ile 7 arasında tıkanan faz,
+   o zincirdeki sonraki fazları da bekletir.
 
 ## BİTİŞ TANIMI
 • Her oyunun aynı koşullardan önce ve sonra sayıları var.
 • Tüm kapılar geçildi. Çalıştırılmamış kapının adı yazılır ve kapsadığı şey kesinleşmiş sayılmaz.
 • Rollback gerçekten test edildi: uygulanmış bir değişiklik `rollback.ps1` ile geri alındı, geri okumayla
   doğrulandı, kuru deneme son durumda da geçiyor.
+• Güvenlik durumu Faz 1 ile aynı: Defender, Firewall, Windows Update, Secure Boot, TPM, BitLocker, VBS ve
+  Memory Integrity yeniden okunup tek tek karşılaştırıldı. Fark varsa raporlanır ve iş bitmiş sayılmaz.
 • Açık kalan her şey listelendi: çalıştırılmadı, ölçülemedi, kararımı bekliyor.
 ```
 
