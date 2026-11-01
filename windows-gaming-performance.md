@@ -376,6 +376,8 @@ question for me, never a guess.
 • Windows: build, power plan, Game Mode, HAGS, services, tasks, drivers, Event Viewer history, WHEA
   history, VBS and Memory Integrity state (elevated
   `Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard`, `msinfo32`).
+• Windows edition: edition and version (10, 11, LTSC and so on), support status, and traces of earlier
+  debloating or a modified install. No reinstall or version upgrade without my approval.
 • Display: every monitor, real Hz, cable, port, DSC, bit depth, RGB range, HDR, VRR.
 • Input: mouse, keyboard, polling rates, USB layout.
 • Network: adapters, link speed, Wi-Fi or Ethernet, driver, router model.
@@ -404,8 +406,8 @@ Protocol, including the noise floor. Output: `reports/baseline_results.json` and
 `PERFORMANCE_BASELINE.md`.
 
 System: boot time, idle CPU and RAM, CPU single and multi score, RAM bandwidth and latency, GPU
-synthetic score, SSD, DPC/ISR (LatencyMon, WPR/WPA for deep traces), ping, jitter, packet loss,
-bufferbloat, peak temperatures, power, my noise impression.
+synthetic score, SSD, DPC/ISR (LatencyMon, WPR/WPA for deep traces), download speed, upload speed,
+ping, jitter, packet loss, bufferbloat, peak temperatures, power, my noise impression.
 
 Each game: one repeatable scene, then average FPS, 1% low, 0.1% low, frametime deviation, stutter
 count, input latency.
@@ -438,6 +440,7 @@ must-keep list.
 
 The usual real offenders are RGB and peripheral software and overlays. Inspect them first, then let
 the measurements decide.
+Inspect audio drivers and virtual surround software as DPC/ISR sources too, with the Phase 2 tool.
 
 A/B test each of these alone, with the full protocol, on one representative game or built-in benchmark,
 then confirm kept changes on the other games: power plan, Game Mode, HAGS, fullscreen
@@ -448,6 +451,10 @@ assumed good, and none is assumed bad.
 • On a dual CCD X3D CPU, read AMD's current guidance before touching the power plan, Game Bar or the
   chipset driver.
   Sources differ on whether core parking depends on Game Bar or on the chipset drivers, so check both.
+• Background recording (Instant Replay, ShadowPlay, OBS, Game DVR) joins this A/B list, each one alone.
+• Background virtualization (Hyper-V, WSL, VMs, Docker): add it to the inventory and measure its cost. VBS
+  uses the same hypervisor and stays on, so no recommendation touches it. For a workload I do not use,
+  you recommend and I decide.
 
 Debloat tools are used selectively, setting by setting: O&O ShutUp10++, WinUtil, Win11Debloat, Sophia
 Script, privacy.sexy.
@@ -501,6 +508,8 @@ Intel:
   start because of VBS, report a tool conflict, not a CPU lock. VBS stays on. Use only what Intel's page
   offers without turning a protection off, or the BIOS path if the CPU has one.
 • E-core behaviour and APO: read Intel's current information for this CPU and these games.
+• Turbo Boost and Adaptive Boost: evaluate their state only if Intel's page shows this platform supports
+  them. On 13th and 14th generation the Phase 1 ceiling still applies.
 
 Both:
 • Test low load and idle separately. A setting can pass all-core stress and still crash at the desktop.
@@ -518,6 +527,10 @@ Output: `RAM_OPTIMIZATION.md`.
   for this exact platform at runtime. No limit found, no voltage change.
 • One timing group at a time, with the RAM gate before the next.
 • The pagefile stays on. No RAM cleaner, no cache flushing.
+• Measure standby, cached, committed and available memory, at idle and during the game.
+• Memory leak: over a long session, log private bytes per process (`Get-Process`, `PrivateMemorySize64`)
+  and report any process that keeps growing.
+• Memory compression: analyse it only (`Get-MMAgent`, elevated). It is not turned off blindly.
 
 Memory errors corrupt data silently, so RAM has the strictest gate: TestMem5 and MemTest86, or the
 replacement Phase 15 allows, must pass before any RAM result is final. After any crash during RAM work,
@@ -550,6 +563,7 @@ Method:
    load and a repeatable score, and log effective clock against requested clock.
 6. At the first error (crash, TDR, artefact, score drop, effective clock falling behind), step back,
    then leave a safety margin below the last good step.
+   A visual artefact (texture corruption, flicker, coloured dots) is an error, even with nothing in the logs.
 7. Repeat at real gaming temperature and at light load (desktop, video, menus, loading screens).
 
 Memory overclock comes separately, after the core result passes. Several GDDR generations detect transfer
@@ -565,6 +579,9 @@ the power connector is fully seated and undamaged.
 Do not apply the profile automatically at startup until every Phase 15 gate has passed, because a bad
 profile at boot can cause a boot loop. Until then I apply it by hand after each boot. A driver update can reset or shift the tuning, so read the
 values back and repeat the quick gate after one.
+
+Clean driver install: only when a driver fault is proven, never as routine. DDU only from its official
+source, with my explicit approval, with a driver backup and the recovery route ready.
 
 ## PHASE 8: VRAM PRESSURE
 You cannot add VRAM, so reduce the pressure and prove the effect.
@@ -612,6 +629,10 @@ Report latency and download speed separately, always. Output: `NETWORK_OPTIMIZAT
   Rules) and internet tests never share a conclusion.
 • Measure ping, jitter and packet loss at idle and under load. Bufferbloat is the rise in latency when
   the link is saturated in each direction.
+• TCP retransmissions: read the counter before and after each network test (`netstat -s` or an equivalent
+  counter) and report the rise. That text is localized, so scripts read a counter property.
+• Measure upload speed and its stability too, before any network change. Bufferbloat is measured under
+  download load and under upload load.
 • Compare Wi-Fi and Ethernet where both exist.
 • NIC driver and properties (EEE, Interrupt Moderation, RSS, offload): one at a time, measured. Microsoft's
   server tuning guide treats disabling Interrupt Moderation as a trade of CPU for latency and says
@@ -626,6 +647,7 @@ Output: `DISPLAY_INPUT_REPORT.md`. Most of this phase is manual cards, with the 
 source.
 
 • Cable and port: confirm they carry the target mode.
+• Monitor firmware: check the version. Update only through the vendor's route, with my approval (level C).
 • Real Hz: read what Windows reports, then verify with the TestUFO frame skipping test.
 • DSC: find out if it is active. DSR, DLDSR and G-SYNC behaviour with DSC varies by monitor and port, so
   confirm it for this monitor.
@@ -665,6 +687,8 @@ upscaler, Reflex or Anti-Lag, FPS cap, VRAM use. The summary goes in `GAME_PROFI
 Three profiles per game: Competitive, Balanced, Visual.
 • My current visual quality is not lowered without permission. Any visual loss in Competitive needs
   my explicit approval, and I choose.
+• Resolution, texture quality, shadow quality, anisotropic filtering and other graphics options are never
+  lowered automatically. A setting tried for the cost table returns to its value after the run.
 • Game files, memory and processes are never changed in a way that carries anti cheat risk. Mark ban
   risk beside every setting, launch option or tool it could apply to, and ask per online title.
 • Back up the config before any edit.
@@ -697,6 +721,11 @@ Error evidence, collected by `scripts/check_errors.ps1` from the test's start ti
 • WHEA-Logger events 18 and 19. Read the message text, and record any other WHEA event too.
 • Kernel-Power 41, Display 4101, nvlddmkm (or the AMD and Intel driver equivalents), TDR events.
 • The HWiNFO WHEA counter, and artefacts or crashes that I report.
+• A visual artefact (texture corruption, flicker, coloured dots), a driver reset or a TDR fails the gate,
+  even if the test finished and its score looks normal.
+• After a BSOD, read the minidumps in `C:\Windows\Minidump` and bugcheck event 1001 (elevated, WinDbg from
+  Microsoft, read-only analysis). The bugcheck code and the related driver go in the report. If no dump
+  exists, check the dump setting (`Get-CimInstance Win32_OSRecoveryConfiguration`).
 
     Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since} -ErrorAction Stop
 
@@ -727,8 +756,8 @@ Repeat the baseline under the same conditions, with the same tools.
 `BENCHMARK_COMPARISON.md` has one row per metric: before median, after median, spread, noise floor,
 verdict (better, no effect, worse, could not be measured).
 • System: boot time, idle CPU, idle RAM, CPU single score, CPU multi score, RAM bandwidth, RAM latency, GPU
-  synthetic score, SSD, DPC/ISR, download speed, ping, jitter, packet loss, bufferbloat, peak CPU and GPU
-  temperature, power, noise impression.
+  synthetic score, SSD, DPC/ISR, download speed, upload speed, ping, jitter, packet loss, bufferbloat, peak
+  CPU and GPU temperature, power, noise impression.
 • Per game: average FPS, 1% low, 0.1% low, frametime deviation, stutter count, input latency with its
   label, and base FPS where frame generation is on.
 
@@ -1145,6 +1174,8 @@ dönüşür, asla tahmin edilmez.
 • Windows: build, güç planı, Game Mode, HAGS, servisler, görevler, sürücüler, Event Viewer geçmişi, WHEA
   geçmişi, VBS ve Memory Integrity durumu (yükseltilmiş
   `Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard`, `msinfo32`).
+• Windows sürümü: edition ve sürüm (10, 11, LTSC gibi), destek durumu, daha önce debloat ya da modifiye
+  kurulum izi. Onayım olmadan yeniden kurulum ya da sürüm yükseltme yok.
 • Ekran: her monitör, gerçek Hz, kablo, port, DSC, bit derinliği, RGB aralığı, HDR, VRR.
 • Girdi: mouse, klavye, polling değerleri, USB yerleşimi.
 • Ağ: adaptörler, bağlantı hızı, Wi-Fi ya da Ethernet, sürücü, router modeli.
@@ -1171,9 +1202,9 @@ uyarıları. Şu sınıfların bu makineye uyup uymadığını kontrol et, ezber
 Ayar değişikliği yok. Metrik başına bir aracı çalışma anında seç ve sonuna kadar onu kullan. Gürültü payı dahil
 Ölçüm Protokolü'ne uy. Çıktı: `reports/baseline_results.json` ve `PERFORMANCE_BASELINE.md`.
 
-Sistem: boot süresi, boşta CPU ve RAM, CPU tek ve çok çekirdek skoru, RAM bant genişliği ve gecikmesi, GPU
-sentetik skoru, SSD, DPC/ISR (LatencyMon, derin izleme için WPR/WPA), ping, jitter, paket kaybı,
-bufferbloat, en yüksek sıcaklıklar, güç, gürültü izlenimim.
+Sistem: boot süresi, boşta CPU ve RAM, CPU tek ve çok çekirdek skoru, RAM bant genişliği ve
+gecikmesi, GPU sentetik skoru, SSD, DPC/ISR (LatencyMon, derin izleme için WPR/WPA), indirme hızı,
+yükleme hızı, ping, jitter, paket kaybı, bufferbloat, en yüksek sıcaklıklar, güç, gürültü izlenimim.
 
 Her oyun: tekrarlanabilir tek sahne, sonra ortalama FPS, 1% low, 0.1% low, frametime sapması, takılma
 sayısı, input gecikmesi.
@@ -1205,6 +1236,7 @@ ancak test, yeniden başlatma ve "çalışması şart" listemin kontrolünden so
 
 Gerçek suçlular genelde RGB ve çevre birimi yazılımları ile overlay'lerdir. Önce onlara bak, sonra kararı
 ölçüm versin.
+Ses sürücülerini ve sanal surround yazılımlarını da Faz 2 aracıyla DPC/ISR kaynağı olarak incele.
 
 Şunların her birini tek başına, tam protokolle, temsili bir oyunda ya da yerleşik benchmark'ta A/B
 testinden geçir, korunanları diğer oyunlarda doğrula: güç planı, Game Mode, HAGS, tam ekran
@@ -1215,6 +1247,10 @@ kötü de kabul edilmez.
 • Çift CCD'li X3D işlemcide güç planına, Game Bar'a ya da chipset sürücüsüne dokunmadan önce AMD'nin güncel rehberini oku.
   Kaynaklar çekirdek park etmenin Game Bar'a mı chipset sürücülerine mi bağlı olduğu konusunda ayrışıyor,
   ikisini de kontrol et.
+• Arka plan kaydı (Instant Replay, ShadowPlay, OBS, Game DVR) bu A/B listesine girer, her biri tek başına.
+• Arka plan sanallaştırma (Hyper-V, WSL, sanal makineler, Docker): envantere ekle, maliyetini ölç. VBS
+  aynı hypervisor'ı kullanır ve açık kalır, hiçbir öneri ona dokunmaz. Kullanmadığım iş yükü için sen
+  önerirsin, ben karar veririm.
 
 Debloat araçları seçerek, ayar ayar kullanılır: O&O ShutUp10++, WinUtil, Win11Debloat, Sophia Script,
 privacy.sexy.
@@ -1268,6 +1304,8 @@ Intel:
   yüzünden başlamıyorsa işlemci kilidi değil araç çakışması raporla. VBS açık kalır. Yalnız Intel'in
   sayfasında bir korumayı kapatmadan sunulan seçenekleri ya da işlemcide varsa BIOS yolunu kullan.
 • E-core davranışı ve APO: bu işlemci ve bu oyunlar için Intel'in güncel bilgisini oku.
+• Turbo Boost ve Adaptive Boost: durumlarını yalnız Intel'in sayfası bu platformun desteklediğini
+  gösteriyorsa değerlendir. 13. ve 14. nesilde Faz 1'deki tavan yine geçerlidir.
 
 İkisi için de:
 • Düşük yükü ve boşta durumu ayrıca test et. Bir ayar tüm çekirdek stresini geçip masaüstünde çökebilir.
@@ -1285,6 +1323,10 @@ Intel:
   çalışma anında oku. Sınır bulunamadıysa voltaj değişikliği yok.
 • Tek seferde bir zamanlama grubu, sonrakinden önce RAM kapısı.
 • Pagefile açık kalır. RAM temizleyici yok, cache boşaltma yok.
+• Standby, cached, committed ve available belleği boşta ve oyun sırasında ölç.
+• Memory leak: uzun oturumda süreç başına private bytes artışını izle (`Get-Process`,
+  `PrivateMemorySize64`), büyümeyi sürdüren süreci raporla.
+• Memory compression: yalnız analiz et (`Get-MMAgent`, yükseltilmiş). Körlemesine kapatılmaz.
 
 Bellek hataları veriyi sessizce bozar, bu yüzden en sıkı kapı RAM'dedir: herhangi bir RAM sonucu kesinleşmeden
 önce TestMem5 ve MemTest86 ya da Faz 15'in izin verdiği yerine geçen test geçmelidir. RAM çalışması sırasındaki her çökmeden sonra sistem dosyalarını kontrol et (yükseltilmiş `sfc /verifyonly`) ve geçilen son kapıdan beri
@@ -1316,6 +1358,7 @@ Yöntem:
    skor çalıştır, istenen saat hızına karşı effective clock'u logla.
 6. İlk hatada (çökme, TDR, artefakt, skor düşüşü, effective clock'un geride kalması) geri adım at, sonra son
    iyi adımın altında güvenlik payı bırak.
+   Görsel artefakt (doku bozulması, titreme, renkli noktalar) logda iz olmasa bile hatadır.
 7. Gerçek oyun sıcaklığında ve hafif yükte (masaüstü, video, menüler, yükleme ekranları) tekrarla.
 
 Bellek overclock'u ayrı yapılır, çekirdek sonucu geçtikten sonra. Birkaç GDDR nesli aktarım hatalarını algılayıp
@@ -1331,6 +1374,9 @@ teyit etmeden artış yok.
 Faz 15'in tüm kapıları geçilene kadar profili açılışta otomatik uygulama, çünkü açılıştaki kötü profil boot
 döngüsüne yol açabilir. O zamana kadar profili her açılıştan sonra elle uygularım. Sürücü güncellemesi ayarı sıfırlayabilir ya da kaydırabilir; güncellemeden sonra
 değerleri geri oku ve hızlı kapıyı tekrarla.
+
+Temiz sürücü kurulumu: yalnız sürücü sorunu kanıtlıysa, asla rutin olarak değil. DDU yalnız resmi
+kaynağından, açık onayımla, sürücü yedeği ve kurtarma yolu hazırken kullanılır.
 
 ## FAZ 8: VRAM BASKISI
 VRAM ekleyemezsin; baskıyı azalt ve etkisini kanıtla.
@@ -1376,6 +1422,10 @@ Gecikme ve indirme hızını her zaman ayrı raporla. Çıktı: `NETWORK_OPTIMIZ
   Kuralları'na tabi) ile internet testleri aynı sonuca bağlanmaz.
 • Ping, jitter ve paket kaybını boşta ve yük altında ölç. Bufferbloat, bağlantı her iki yönde
   doyurulduğunda gecikmede görülen artıştır.
+• TCP retransmission: her ağ testinden önce ve sonra sayacı oku (`netstat -s` ya da eşdeğer sayaç), artışı
+  raporla. Bu çıktı yerelleştirilmiştir, scriptler sayaç özelliğini okur.
+• Yükleme hızını ve kararlılığını da herhangi bir ağ değişikliğinden önce ölç. Bufferbloat hem indirme hem
+  yükleme yükünde ölçülür.
 • İkisi de varsa Wi-Fi ve Ethernet'i karşılaştır.
 • NIC sürücüsü ve özellikleri (EEE, Interrupt Moderation, RSS, offload): tek tek, ölçerek. Microsoft'un
   sunucu ayar rehberi Interrupt Moderation'ı kapatmayı CPU karşılığında gecikme kazanma takası olarak ele
@@ -1389,6 +1439,7 @@ Gecikme ve indirme hızını her zaman ayrı raporla. Çıktı: `NETWORK_OPTIMIZ
 Çıktı: `DISPLAY_INPUT_REPORT.md`. Bu fazın çoğu elle adım kartıdır, kaynak monitörün kılavuzudur.
 
 • Kablo ve port: hedef modu taşıdıklarını doğrula.
+• Monitör firmware'i: sürümü kontrol et. Güncelleme yalnız üreticinin yoluyla, onayımla (C seviyesi).
 • Gerçek Hz: Windows'un bildirdiğini oku, sonra TestUFO frame skipping testiyle doğrula.
 • DSC: aktif olup olmadığını bul. DSR, DLDSR ve G-SYNC'in DSC ile davranışı monitöre ve porta göre
   değişir, bu monitör için doğrula.
@@ -1427,6 +1478,8 @@ Anti-Lag, FPS sınırı, VRAM kullanımı. Özet `GAME_PROFILES.md` dosyasına g
 Oyun başına üç profil: Competitive, Balanced, Visual.
 • Mevcut görsel kalitem izinsiz düşürülmez. Competitive'deki her görsel kayıp açık onayımı gerektirir ve
   seçimi ben yaparım.
+• Çözünürlük, doku kalitesi, gölge kalitesi, anisotropic filtering ve diğer grafik seçenekleri otomatik
+  düşürülmez. Maliyet tablosu için denenen ayar koşudan sonra eski değerine döner.
 • Oyun dosyaları, belleği ve süreçleri anti cheat riski taşıyacak biçimde asla değiştirilmez. Risk
   taşıyabilecek her ayarın, başlatma seçeneğinin ya da aracın yanına ban riskini yaz, online oyun bazında
   sor.
@@ -1460,6 +1513,11 @@ Hata kanıtı, testin başlangıç zamanından itibaren `scripts/check_errors.ps
 • WHEA-Logger olayları 18 ve 19. Mesaj metnini oku, diğer WHEA olaylarını da kaydet.
 • Kernel-Power 41, Display 4101, nvlddmkm (ya da AMD ve Intel sürücü karşılıkları), TDR olayları.
 • HWiNFO WHEA sayacı, bildirdiğim artefakt ve çökmeler.
+• Görsel artefakt (doku bozulması, titreme, renkli noktalar), sürücü sıfırlanması ya da TDR, test bitmiş ve
+  skoru normal görünse bile kapı kalmış sayılır.
+• BSOD olduysa `C:\Windows\Minidump` içindeki minidump'ları ve bugcheck olayı 1001'i oku (yükseltilmiş,
+  Microsoft'un WinDbg'si, salt okunur analiz). Bugcheck kodu ve ilişkili sürücü rapora girer. Dump yoksa
+  dump ayarını kontrol et (`Get-CimInstance Win32_OSRecoveryConfiguration`).
 
     Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since} -ErrorAction Stop
 
@@ -1489,8 +1547,8 @@ Baseline'ı aynı koşullarda, aynı araçlarla tekrarla.
 `BENCHMARK_COMPARISON.md` metrik başına bir satır içerir: önceki medyan, sonraki medyan, sapma, gürültü payı,
 hüküm (daha iyi, etkisiz, daha kötü, ölçülemedi).
 • Sistem: boot süresi, boşta CPU, boşta RAM, CPU tek çekirdek skoru, CPU çok çekirdek skoru, RAM bant
-  genişliği, RAM gecikmesi, GPU sentetik skoru, SSD, DPC/ISR, indirme hızı, ping, jitter, paket kaybı,
-  bufferbloat, en yüksek CPU ve GPU sıcaklığı, güç, gürültü izlenimi.
+  genişliği, RAM gecikmesi, GPU sentetik skoru, SSD, DPC/ISR, indirme hızı, yükleme hızı, ping, jitter,
+  paket kaybı, bufferbloat, en yüksek CPU ve GPU sıcaklığı, güç, gürültü izlenimi.
 • Oyun başına: ortalama FPS, 1% low, 0.1% low, frametime sapması, takılma sayısı, etiketiyle input gecikmesi,
   frame generation açıksa temel FPS.
 
